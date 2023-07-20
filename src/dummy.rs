@@ -21,8 +21,6 @@ pub fn dummy_imports(
             continue;
         }
         let module_name = imp.module();
-        println!("module name {}", module_name);
-        println!("namespaces {:#?}", allow_namespaces);
         let mut allow_namespaces = vec![];
         allow_namespaces.push("dylibso_observe".to_string());
 
@@ -88,9 +86,7 @@ pub fn dummy_extern(store: &mut crate::Store, ty: ExternType, name: &str) -> Res
 
 /// Construct a dummy function for the given function type
 pub fn dummy_func(store: &mut crate::Store, ty: FuncType, name: &str) -> Func {
-    Func::new(store, ty.clone(), move |_caller, _params, _results| {
-        Ok(())
-    })
+    Func::new(store, ty.clone(), move |_caller, _params, _results| Ok(()))
 }
 
 /// Construct a dummy value for the given value type.

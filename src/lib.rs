@@ -352,7 +352,6 @@ impl Wizer {
     /// Allow namespace
     pub fn allow_namespace(&mut self, namespace: &str) -> &mut Self {
         self.allow_namespaces.push(namespace.to_string());
-        println!("allow namespaces {:#?}", &self.allow_namespaces);
         self
     }
 
