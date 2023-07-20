@@ -10,6 +10,7 @@ pub fn dummy_imports(
     store: &mut crate::Store,
     module: &wasmtime::Module,
     linker: &mut crate::Linker,
+    allow_namespaces: &Vec<String>,
 ) -> Result<()> {
     log::debug!("Creating dummy imports");
 
@@ -19,15 +20,56 @@ pub fn dummy_imports(
             // Already defined, must be part of WASI.
             continue;
         }
-        let val = dummy_extern(
-            &mut *store,
-            imp.ty(),
-            &format!("'{}' '{}'", imp.module(), name),
-        )?;
+        let module_name = imp.module();
+        println!("module name {}", module_name);
+        println!("namespaces {:#?}", allow_namespaces);
+        let mut allow_namespaces = vec![];
+        allow_namespaces.push("dylibso_observe".to_string());
+
+        let val = if allow_namespaces.contains(&module_name.to_string()) {
+            dummy_extern(
+                &mut *store,
+                imp.ty(),
+                &format!("'{}' '{}'", module_name, name),
+            )?
+        } else {
+            trapping_extern(
+                &mut *store,
+                imp.ty(),
+                &format!("'{}' '{}'", module_name, name),
+            )?
+        };
         linker.define(&mut *store, imp.module(), name, val).unwrap();
     }
 
     Ok(())
+}
+
+/// Construct a dummy `Extern` from its type signature
+pub fn trapping_extern(store: &mut crate::Store, ty: ExternType, name: &str) -> Result<Extern> {
+    Ok(match ty {
+        ExternType::Func(func_ty) => Extern::Func(trapping_func(store, func_ty, name)),
+        ExternType::Global(_) => {
+            anyhow::bail!("Error: attempted to import unknown global: {}", name)
+        }
+        ExternType::Table(_) => anyhow::bail!("Error: attempted to import unknown table: {}", name),
+        ExternType::Memory(_) => {
+            anyhow::bail!("Error: attempted to import unknown memory: {}", name)
+        }
+    })
+}
+
+/// Construct a dummy function for the given function type
+pub fn trapping_func(store: &mut crate::Store, ty: FuncType, name: &str) -> Func {
+    let name = name.to_string();
+    Func::new(store, ty.clone(), move |_caller, _params, _results| {
+        Err(anyhow!(
+            "Error: attempted to call an unknown imported function: {}\n\
+             \n\
+             You cannot call arbitrary imported functions during Wizer initialization.",
+            name,
+        ))
+    })
 }
 
 /// Construct a dummy `Extern` from its type signature
@@ -46,14 +88,8 @@ pub fn dummy_extern(store: &mut crate::Store, ty: ExternType, name: &str) -> Res
 
 /// Construct a dummy function for the given function type
 pub fn dummy_func(store: &mut crate::Store, ty: FuncType, name: &str) -> Func {
-    let name = name.to_string();
     Func::new(store, ty.clone(), move |_caller, _params, _results| {
-        Err(anyhow!(
-            "Error: attempted to call an unknown imported function: {}\n\
-             \n\
-             You cannot call arbitrary imported functions during Wizer initialization.",
-            name,
-        ))
+        Ok(())
     })
 }
 

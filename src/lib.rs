@@ -124,6 +124,8 @@ pub struct Wizer {
     #[cfg_attr(feature = "structopt", structopt(long = "allow-wasi"))]
     allow_wasi: bool,
 
+    allow_namespaces: Vec<String>,
+
     #[cfg_attr(feature = "structopt", structopt(skip))]
     make_linker: Option<Rc<dyn Fn(&wasmtime::Engine) -> anyhow::Result<Linker>>>,
 
@@ -217,6 +219,7 @@ impl std::fmt::Debug for Wizer {
             init_func,
             func_renames,
             allow_wasi,
+            allow_namespaces,
             make_linker: _,
             inherit_stdio,
             inherit_env,
@@ -232,6 +235,7 @@ impl std::fmt::Debug for Wizer {
             .field("init_func", &init_func)
             .field("func_renames", &func_renames)
             .field("allow_wasi", &allow_wasi)
+            .field("allow_namespaces", &allow_wasi)
             .field("make_linker", &"..")
             .field("inherit_stdio", &inherit_stdio)
             .field("inherit_env", &inherit_env)
@@ -294,6 +298,7 @@ impl Wizer {
             init_func: "wizer.initialize".into(),
             func_renames: vec![],
             allow_wasi: false,
+            allow_namespaces: vec![],
             make_linker: None,
             inherit_stdio: None,
             inherit_env: None,
@@ -342,6 +347,13 @@ impl Wizer {
         );
         self.allow_wasi = allow;
         Ok(self)
+    }
+
+    /// Allow namespace
+    pub fn allow_namespace(&mut self, namespace: &str) -> &mut Self {
+        self.allow_namespaces.push(namespace.to_string());
+        println!("allow namespaces {:#?}", &self.allow_namespaces);
+        self
     }
 
     /// The linker to use during initialization rather than the default
@@ -724,7 +736,7 @@ impl Wizer {
             })?;
         }
 
-        dummy_imports(&mut *store, &module, &mut linker)?;
+        dummy_imports(&mut *store, &module, &mut linker, &self.allow_namespaces)?;
 
         let instance = linker
             .instantiate(&mut *store, module)
